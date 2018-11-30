@@ -1,12 +1,22 @@
+// VERSION 4.0
 pipeline {
+
     agent any
-    tools {
-        maven 'LocalMaven'
+
+    parameters {
+        string(name: 'tomcat_dev', defaultValue: '18.222.145.124', description: 'Staging Server')
+        string(name: 'tomcat_prod', defaultValue: '3.16.108.205', description: 'Production Server')
     }
+
+    triggers {
+        pollSCM('* * * * *')
+    }
+
     stages{
+
         stage('Build'){
             steps {
-                bat 'mvn clean package'
+                sh 'mvn clean package'
             }
             post {
                 success {
@@ -15,32 +25,70 @@ pipeline {
                 }
             }
         }
-        stage ('Deploy to Staging') {
-            steps {
-                build job: 'deploy-to-staging'
-            }
-        }
-        stage ('Deploy to Production'){
-            steps{
-                timeout(time:5, unit:'DAYS'){
-                    input message:'Approve PRODUCTION Deployment?'
-                }
 
-                build job: 'deploy-to-prod'
-            }
-            post {
-                success {
-                    echo 'Code deployed to Production.'
+        stage ('Deployments'){
+            parallel{
+                stage ('Deploy to Staging'){
+                    steps {
+                        sh "scp -i ../tomcat-demo.pem **/target/*.war ec2-user@${params.tomcat_dev}:/var/lib/tomcat7/webapps"
+                    }
                 }
-
-                failure {
-                    echo 'Deployment failed.'
+                stage ("Deploy to Production"){
+                    steps {
+                        sh "scp -i ../tomcat-demo.pem **/target/*.war ec2-user@${params.tomcat_prod}:/var/lib/tomcat7/webapps"
+                    }
                 }
             }
         }
 
     }
+
 }
+
+// VERSION 1.0 TO 3.0
+// pipeline {
+//     agent any
+//     tools {
+//         maven 'LocalMaven'
+//     }
+//     stages{
+//         stage('Build'){
+//             steps {
+//                 bat 'mvn clean package'
+//             }
+//             post {
+//                 success {
+//                     echo 'Now Archiving...'
+//                     archiveArtifacts artifacts: '**/target/*.war'
+//                 }
+//             }
+//         }
+//         stage ('Deploy to Staging') {
+//             steps {
+//                 build job: 'deploy-to-staging'
+//             }
+//         }
+//         stage ('Deploy to Production'){
+//             steps{
+//                 timeout(time:5, unit:'DAYS'){
+//                     input message:'Approve PRODUCTION Deployment?'
+//                 }
+
+//                 build job: 'deploy-to-prod'
+//             }
+//             post {
+//                 success {
+//                     echo 'Code deployed to Production.'
+//                 }
+
+//                 failure {
+//                     echo 'Deployment failed.'
+//                 }
+//             }
+//         }
+//     }
+// }
+
 // VERSION 3.0
 // pipeline {
 //     agent any
